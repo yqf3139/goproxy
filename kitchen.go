@@ -1,0 +1,264 @@
+package goproxy
+
+import (
+	"log"
+	"net/http"
+	"bytes"
+	"io/ioutil"
+	"io"
+	"regexp"
+	"fmt"
+  "strconv"
+	"strings"
+	"code.google.com/p/go.net/websocket"
+)
+
+const (
+	WSPORT_START = 10080
+	WSPORT_MAX = 10
+	HTTP_PORT       = ":8000"
+  SSL_PORT       = ":8443"
+  PRIV_KEY   = "./mycert1.key"
+  PUBLIC_KEY = "./mycert1.cer"
+)
+
+var INJECT_HTTP_PREFIX string
+var INJECT_HTTPS_PREFIX string
+
+func (self *Kitchen) IsNotLocalHost() ReqConditionFunc {
+	return func(req *http.Request, ctx *ProxyCtx) bool {
+		return !( strings.Contains(req.URL.Host, self.Addr) ||
+			req.URL.Host == "::1" ||
+			req.URL.Host == "0:0:0:0:0:0:0:1" ||
+			localHostIpv4.MatchString(req.URL.Host) ||
+			req.URL.Host == "localhost")
+	}
+}
+
+type myReader struct {
+    *bytes.Buffer
+}
+func (m myReader) Close() error { return nil }
+
+type Menu struct {
+  Name string
+	Urlreg string
+  Category string
+  NeedRaw bool
+}
+
+type MenuList struct {
+	Menus []Menu
+}
+
+type Kitchen struct {
+  Schedules []*Menu
+	Addr string
+  counter [2]int
+  Cookers [2]([]*Cooker)
+  Proxy *ProxyHttpServer
+}
+
+func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
+  return func (ws *websocket.Conn)  {
+    var err error
+		cooker := self.Cookers[ssl][index]
+
+    if cooker == nil{
+			fmt.Println("drop ws conn : cooker is nil")
+      return
+    }
+		if cooker.isCooking {
+			fmt.Println("drop ws conn : cooker.isCooking")
+			return
+		}
+		cooker.isCooking = true
+
+		defer func ()  {
+			ws.Close()
+			cooker.isCooking = false
+			cooker.offDuty()
+			self.Cookers[ssl][index] = nil
+		}()
+
+    for {
+        var reply string
+
+        if err = websocket.Message.Receive(ws, &reply); err != nil {
+            fmt.Println("Can't receive")
+            break
+        }
+
+        // TODO chain
+        reply = cooker.wash(reply)
+
+				cooker.dumpRaw(reply)
+        if cooker.ready {
+          reply = cooker.cook(reply)
+        }else {
+          reply = cooker.prepare(reply)
+        }
+
+        for _, persenter := range cooker.presenters {
+          persenter.present(reply)
+        }
+    }
+  }
+}
+
+func FullUrlMatches(re *regexp.Regexp) ReqConditionFunc {
+	return func(req *http.Request, ctx *ProxyCtx) bool {
+		return re.MatchString(req.URL.String())
+	}
+}
+
+func Hello(w http.ResponseWriter, r *http.Request) {
+	hp := `<html>
+    <head>
+    <title>okkkkkk</title>
+    </head>
+    <body>
+        <h2>this is a test for golang.</h2>
+    </body>
+    </html>`
+	io.WriteString(w, hp)
+}
+
+func (self *Kitchen) newCooker(menu *Menu, ssl int) (*Cooker, bool) {
+  port := 0;
+  needCreateNewPort := false
+  if self.counter[ssl] < WSPORT_MAX{
+      port = self.counter[ssl] + WSPORT_START + ssl*WSPORT_MAX;
+			self.counter[ssl]++
+      needCreateNewPort = true
+  }else {
+      for index, item := range self.Cookers[ssl] {
+          if item == nil {
+            port = WSPORT_START + ssl*WSPORT_MAX + index
+            break
+          }
+      }
+  }
+  if port == 0 {
+    return nil, false
+  }
+
+	cat := menu.Category
+
+	fmt.Println("new port:%d new name:%s",port, menu.Name)
+
+  switch cat {
+  case WEBGL:
+    return nil, false
+  case SECURITY:
+    return nil, false
+  default:
+    return &Cooker{ port: port, menu: menu,
+      presenters : []Presenter{&SimplePresenter{}}},
+			needCreateNewPort
+  }
+}
+
+func (self *Kitchen) Open(addr *string)  {
+	// local addr
+	INJECT_HTTP_PREFIX = "http://" + self.Addr + HTTP_PORT+"/static/"
+	INJECT_HTTPS_PREFIX = "https://" + self.Addr + SSL_PORT+"/static/"
+
+  // config http/https server to host js and worker js
+  http.HandleFunc("/", Hello)
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+
+  go func() {
+    err := http.ListenAndServe(HTTP_PORT, nil)
+    if err != nil {
+      log.Fatal("ListenAndServe: ", err.Error())
+    }
+  }()
+
+	go func() {
+		err := http.ListenAndServeTLS(SSL_PORT, PUBLIC_KEY, PRIV_KEY, nil)
+		if err != nil {
+			log.Fatal("ListenAndServe: ", err.Error())
+		}
+	}()
+
+  // config proxy sever to hiject https
+  self.Proxy.OnRequest(self.IsNotLocalHost()).HandleConnect(AlwaysMitm)
+
+	// hiject wsworker.js to local for cross origin issue
+	self.Proxy.OnRequest(UrlMatches(regexp.MustCompile("wsworker.js$"))).DoFunc(
+	func(r *http.Request, ctx *ProxyCtx) (*http.Request, *http.Response) {
+		if r.URL.Scheme == "https"{
+			r.URL.Host = self.Addr + SSL_PORT
+		}else {
+			r.URL.Host = self.Addr + HTTP_PORT
+		}
+		r.URL.Path = "/static/wsworker.js"
+		return r, nil
+	})
+
+
+  // create inject function
+  for _, menu := range self.Schedules {
+		// local bindings, for func closures
+    re, _ := regexp.Compile(menu.Urlreg)
+		localmenu := menu
+
+    self.Proxy.OnResponse(FullUrlMatches(re), ContentTypeIs("text/html")).DoFunc(
+    	func(resp *http.Response, ctx *ProxyCtx) *http.Response {
+				fmt.Println(resp.Request.URL)
+
+				var ssl int = 0;
+				if resp.Request.URL.Scheme == "https"{
+					ssl = 1;
+				}
+
+        kitchen := self
+        cooker, needCreateNewPort := kitchen.newCooker(localmenu, ssl)
+
+        if cooker == nil {
+          return NewResponse(resp.Request,
+            ContentTypeText, http.StatusForbidden,
+            "Sorry, the cookers number is at its max.")
+        }
+
+				index := cooker.port - ssl*WSPORT_MAX -WSPORT_START
+        kitchen.Cookers[ssl][index] = cooker
+
+        cooker.onDuty()
+
+        // launch or reuse a new web socket port
+        if needCreateNewPort{
+          go func() {
+						if ssl == 1{
+							log.Fatal(http.ListenAndServeTLS(":"+strconv.Itoa(cooker.port),
+								PUBLIC_KEY, PRIV_KEY,
+								websocket.Handler(kitchen.newWorkflow(index, ssl))))
+						}else{
+							log.Fatal(http.ListenAndServe(":"+strconv.Itoa(cooker.port),
+								websocket.Handler(kitchen.newWorkflow(index, ssl))))
+						}
+          }()
+        }
+
+    		ctx.Logf(" ======== Inject ======== \n")
+    		buf, _ := ioutil.ReadAll(resp.Body)
+    		rdr := myReader{bytes.NewBuffer(buf)}
+				if resp.Request.URL.Scheme == "https"{
+					rdr.WriteString("<script>var WSADDR='wss://"+kitchen.Addr+":"+strconv.Itoa(cooker.port)+"'</script>")
+					rdr.WriteString("<script src=\""+INJECT_HTTPS_PREFIX+cooker.injectFileName+"\"></script>")
+				}else {
+					rdr.WriteString("<script>var WSADDR='ws://"+kitchen.Addr+":"+strconv.Itoa(cooker.port)+"'</script>")
+					rdr.WriteString("<script src=\""+INJECT_HTTP_PREFIX+cooker.injectFileName+"\"></script>")
+				}
+    		resp.Body = rdr // OK since rdr2 implements the io.ReadCloser interface
+
+    		return resp
+    	})
+  }
+	log.Fatal(http.ListenAndServe(*addr, self.Proxy))
+}
+
+func (self *Kitchen) Close()  {
+
+}

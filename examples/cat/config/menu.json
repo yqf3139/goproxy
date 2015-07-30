@@ -1,0 +1,22 @@
+{
+	"Menus" : [
+	{
+		"Name" : "baidu",
+		"Urlreg" : "baidu.com[:]*[0-9]*/$",
+		"Category" : "DEFAULT",
+		"NeedRaw" : true
+	},
+	{
+		"Name" : "v2ex",
+		"Urlreg" : "v2ex.com[:]*[0-9]*/$",
+		"Category" : "DEFAULT",
+		"NeedRaw" : true
+	},
+	{
+		"Name" : "taobao",
+		"Urlreg" : "taobao.com[:]*[0-9]*/$",
+		"Category" : "DEFAULT",
+		"NeedRaw" : true
+	}
+	]
+}

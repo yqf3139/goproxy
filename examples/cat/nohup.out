@@ -1,0 +1,8 @@
+Gtk-Message: Failed to load module "unity-gtk-module"
+已在现有的浏览器会话中创建新的窗口。
+Gtk-Message: Failed to load module "unity-gtk-module"
+[14842:14842:0729/084611:ERROR:url_pattern_set.cc(240)] Invalid url pattern: chrome://print/*
+[14842:14842:0729/084612:ERROR:CONSOLE(0)] "Application Cache Error event: Manifest fetch failed (6) https://www.google.com/_/chrome/newtab/manifest?espv=2&ie=UTF-8&client=ubuntu", source: https://www.google.com/_/chrome/newtab?espv=2&ie=UTF-8&client=ubuntu (0)
+[14842:14842:0729/085712:ERROR:gcm_channel_status_request.cc(87)] GCM channel request failed.
+[14842:14842:0729/085740:ERROR:gcm_channel_status_request.cc(87)] GCM channel request failed.
+[14842:14842:0729/085839:ERROR:gcm_channel_status_request.cc(87)] GCM channel request failed.
