@@ -1,21 +1,37 @@
 var socket;
 
+var wsstate = false;
+
+function WSOnOpen(event) {
+  wsstate = true;
+  postMessage({action:'open'});
+  console.log('Client onopen',event);
+}
+
+function WSOnClose(event) {
+  wsstate = false;
+  postMessage({action:'close'});
+  console.log('Client notified socket has closed',event);
+}
+
 onmessage = function(event) {
-    if(socket){
-      //console.log('send '+event.data);
-      socket.send(event.data);
-    }
-    else {
-      console.log('conn to '+event.data);
-      socket = new WebSocket(event.data);
-      socket.onopen = function(event) {
-        console.log('Client onopen',event);
-      }
-      socket.onmessage = function(event) {
-        console.log('Client received a message',event);
-      };
-      socket.onclose = function(event) {
-        console.log('Client notified socket has closed',event);
-      };
-    }
-};
+  switch (event.data.action) {
+    case 'deliver':
+      socket.send(event.data.msgs);
+    case 'open':
+      if(wsstate)break;
+      console.log('conn to '+event.data.WSADDR);
+      socket = new WebSocket(event.data.WSADDR);
+      socket.onopen = WSOnOpen;
+      socket.onclose = WSOnClose;
+      break;
+    case 'close':
+      if(!socket || !wsstate)break;
+      socket.close();
+      break;
+    case 'ready':
+      socket.send(JSON.stringify({ready:true}));
+    break;
+    default:
+  }
+}

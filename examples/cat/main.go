@@ -62,9 +62,9 @@ func main() {
 	kitchen := goproxy.Kitchen{
 		Schedules : schedules,
 		Addr : localaddr,
-		Cookers : [2]([]*goproxy.Cooker){
-			make([]*goproxy.Cooker, 10),
-			make([]*goproxy.Cooker, 10)},
+		Cookers : [2]([]goproxy.Cooker){
+			make([]goproxy.Cooker, 10),
+			make([]goproxy.Cooker, 10)},
 		Proxy : goproxy.NewProxyHttpServer(),
 	}
 	kitchen.Proxy.Verbose = *verbose

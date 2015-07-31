@@ -1,13 +1,66 @@
-alert(WSADDR);
+console.log(WSADDR);
+
+if(typeof(Worker) === "undefined") {
+  alert('Worker not support')
+}
 
 var worker = new Worker('/wsworker.js');
 
-worker.postMessage(WSADDR);
+worker.onmessage = function(event){
+    switch (event.data.action) {
+      case 'open':
+        WATunnel.isOpened = true;
+        break;
+      case 'close':
+        WATunnel.isOpened = false;
+        break;
+      default:
+    }
+};
 
-function entry() {
-  setTimeout('entry()',1000);
-  var msg = prompt("Msg ?", "None");
-  worker.postMessage(JSON.stringify({msg:msg}));
+var WATunnel = {
+  isOpened: false,
+  cache: [],
+  autoFlush: true,
+  counter: 0,
+  sec: 0,
+  open: function (argument) {
+    if(!worker) alert('worker is not loaded');
+    if(!this.isOpened)
+      worker.postMessage({action:'open',WSADDR:WSADDR});
+  },
+  ready: function (argument) {
+    if(this.isOpened)
+      worker.postMessage({action:'ready'});
+  },
+  flush: function() {
+    if(this.cache.length > 0){
+      worker.postMessage({action:'deliver',msgs:JSON.stringify(this.cache)});
+      this.cache = []
+    }
+  },
+  deliver: function (msg) {
+    if(this.isOpened){
+      // this.counter++;
+      // var tmp = new Date().getUTCSeconds();
+      // if(tmp != this.sec){
+      //   console.log(this.counter);
+      //   this.sec = tmp;
+      //   this.counter = 0;
+      // }
+
+      // TODO cache and real send later for opt
+      this.cache.push(msg)
+      if(this.autoFlush && this.cache.length == 5000){
+        this.flush();
+      }
+    }else {
+      // cache the msg && try to restore ws conn
+      alert('WATunnel is not opened')
+    }
+  },
+  close: function (argument) {
+    if(this.isOpened)
+      worker.postMessage({action:'close'});
+  }
 }
-
-setTimeout('entry()',1000);

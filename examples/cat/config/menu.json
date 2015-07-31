@@ -13,9 +13,9 @@
 		"NeedRaw" : true
 	},
 	{
-		"Name" : "taobao",
-		"Urlreg" : "taobao.com[:]*[0-9]*/$",
-		"Category" : "DEFAULT",
+		"Name" : "aquarium",
+		"Urlreg" : "webglsamples.org/aquarium/aquarium.html$",
+		"Category" : "WEBGL",
 		"NeedRaw" : true
 	}
 	]

@@ -20,6 +20,8 @@ const (
   SSL_PORT       = ":8443"
   PRIV_KEY   = "./mycert1.key"
   PUBLIC_KEY = "./mycert1.cer"
+	WSS_PREFIX = "wss"
+	WS_PREFIX = "ws"
 )
 
 var INJECT_HTTP_PREFIX string
@@ -55,7 +57,7 @@ type Kitchen struct {
   Schedules []*Menu
 	Addr string
   counter [2]int
-  Cookers [2]([]*Cooker)
+  Cookers [2]([]Cooker)
   Proxy *ProxyHttpServer
 }
 
@@ -68,15 +70,15 @@ func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
 			fmt.Println("drop ws conn : cooker is nil")
       return
     }
-		if cooker.isCooking {
+		if cooker.isCooking() {
 			fmt.Println("drop ws conn : cooker.isCooking")
 			return
 		}
-		cooker.isCooking = true
+		cooker.setCooking(true)
 
 		defer func ()  {
 			ws.Close()
-			cooker.isCooking = false
+			cooker.setCooking(false)
 			cooker.offDuty()
 			self.Cookers[ssl][index] = nil
 		}()
@@ -93,21 +95,20 @@ func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
         reply = cooker.wash(reply)
 
 				cooker.dumpRaw(reply)
-        if cooker.ready {
+        if cooker.isReady() {
           reply = cooker.cook(reply)
         }else {
           reply = cooker.prepare(reply)
         }
 
-        for _, persenter := range cooker.presenters {
-          persenter.present(reply)
-        }
+				cooker.present(reply)
     }
   }
 }
 
 func FullUrlMatches(re *regexp.Regexp) ReqConditionFunc {
 	return func(req *http.Request, ctx *ProxyCtx) bool {
+		//fmt.Println("matching : "+req.URL.String())
 		return re.MatchString(req.URL.String())
 	}
 }
@@ -124,8 +125,8 @@ func Hello(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, hp)
 }
 
-func (self *Kitchen) newCooker(menu *Menu, ssl int) (*Cooker, bool) {
-  port := 0;
+func (self *Kitchen) newCooker(menu *Menu, ssl int) (Cooker, int, bool) {
+  port := 0
   needCreateNewPort := false
   if self.counter[ssl] < WSPORT_MAX{
       port = self.counter[ssl] + WSPORT_START + ssl*WSPORT_MAX;
@@ -140,7 +141,7 @@ func (self *Kitchen) newCooker(menu *Menu, ssl int) (*Cooker, bool) {
       }
   }
   if port == 0 {
-    return nil, false
+    return nil, 0, false
   }
 
 	cat := menu.Category
@@ -149,20 +150,18 @@ func (self *Kitchen) newCooker(menu *Menu, ssl int) (*Cooker, bool) {
 
   switch cat {
   case WEBGL:
-    return nil, false
+		return &WebglCooker{SimpleCooker{menu: menu}}, port, needCreateNewPort
   case SECURITY:
-    return nil, false
+		return nil, 0, false
   default:
-    return &Cooker{ port: port, menu: menu,
-      presenters : []Presenter{&SimplePresenter{}}},
-			needCreateNewPort
+    return &SimpleCooker{menu: menu}, port, needCreateNewPort
   }
 }
 
 func (self *Kitchen) Open(addr *string)  {
 	// local addr
-	INJECT_HTTP_PREFIX = "http://" + self.Addr + HTTP_PORT+"/static/"
-	INJECT_HTTPS_PREFIX = "https://" + self.Addr + SSL_PORT+"/static/"
+	INJECT_HTTP_PREFIX = fmt.Sprintf("http://%s%s/static/", self.Addr, HTTP_PORT)
+	INJECT_HTTPS_PREFIX = fmt.Sprintf("https://%s%s/static/", self.Addr, SSL_PORT)
 
   // config http/https server to host js and worker js
   http.HandleFunc("/", Hello)
@@ -188,6 +187,8 @@ func (self *Kitchen) Open(addr *string)  {
 	// hiject wsworker.js to local for cross origin issue
 	self.Proxy.OnRequest(UrlMatches(regexp.MustCompile("wsworker.js$"))).DoFunc(
 	func(r *http.Request, ctx *ProxyCtx) (*http.Request, *http.Response) {
+		ctx.Logf(" ======== wsworker Inject ======== \n")
+
 		if r.URL.Scheme == "https"{
 			r.URL.Host = self.Addr + SSL_PORT
 		}else {
@@ -214,7 +215,7 @@ func (self *Kitchen) Open(addr *string)  {
 				}
 
         kitchen := self
-        cooker, needCreateNewPort := kitchen.newCooker(localmenu, ssl)
+        cooker, port, needCreateNewPort := kitchen.newCooker(localmenu, ssl)
 
         if cooker == nil {
           return NewResponse(resp.Request,
@@ -222,7 +223,7 @@ func (self *Kitchen) Open(addr *string)  {
             "Sorry, the cookers number is at its max.")
         }
 
-				index := cooker.port - ssl*WSPORT_MAX -WSPORT_START
+				index := port - ssl*WSPORT_MAX -WSPORT_START
         kitchen.Cookers[ssl][index] = cooker
 
         cooker.onDuty()
@@ -231,11 +232,11 @@ func (self *Kitchen) Open(addr *string)  {
         if needCreateNewPort{
           go func() {
 						if ssl == 1{
-							log.Fatal(http.ListenAndServeTLS(":"+strconv.Itoa(cooker.port),
+							log.Fatal(http.ListenAndServeTLS(":"+strconv.Itoa(port),
 								PUBLIC_KEY, PRIV_KEY,
 								websocket.Handler(kitchen.newWorkflow(index, ssl))))
 						}else{
-							log.Fatal(http.ListenAndServe(":"+strconv.Itoa(cooker.port),
+							log.Fatal(http.ListenAndServe(":"+strconv.Itoa(port),
 								websocket.Handler(kitchen.newWorkflow(index, ssl))))
 						}
           }()
@@ -244,13 +245,27 @@ func (self *Kitchen) Open(addr *string)  {
     		ctx.Logf(" ======== Inject ======== \n")
     		buf, _ := ioutil.ReadAll(resp.Body)
     		rdr := myReader{bytes.NewBuffer(buf)}
+
+				var wsPrefix, urlPrefix string
 				if resp.Request.URL.Scheme == "https"{
-					rdr.WriteString("<script>var WSADDR='wss://"+kitchen.Addr+":"+strconv.Itoa(cooker.port)+"'</script>")
-					rdr.WriteString("<script src=\""+INJECT_HTTPS_PREFIX+cooker.injectFileName+"\"></script>")
+					wsPrefix, urlPrefix = "wss", INJECT_HTTPS_PREFIX
 				}else {
-					rdr.WriteString("<script>var WSADDR='ws://"+kitchen.Addr+":"+strconv.Itoa(cooker.port)+"'</script>")
-					rdr.WriteString("<script src=\""+INJECT_HTTP_PREFIX+cooker.injectFileName+"\"></script>")
+					wsPrefix, urlPrefix = "ws", INJECT_HTTP_PREFIX
 				}
+
+				rdr.WriteString(fmt.Sprintf("<script>var WSADDR='%s://%s:%d'</script>",
+					wsPrefix, kitchen.Addr, port))
+
+				injectFiles, injectVariables := cooker.getInject()
+
+				for _, variable := range injectVariables {
+					rdr.WriteString(fmt.Sprintf("<script>%s</script>",variable))
+				}
+				for _, filename := range injectFiles {
+					rdr.WriteString(fmt.Sprintf("<script src=\"%s%s\"></script>",urlPrefix, filename))
+				}
+				ctx.Logf(" ======== Inject Done ======== \n")
+
     		resp.Body = rdr // OK since rdr2 implements the io.ReadCloser interface
 
     		return resp
