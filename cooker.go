@@ -102,7 +102,7 @@ func (self *SimpleCooker) wash(s string) string {
 
 func (self *SimpleCooker) dumpRaw(s string) {
     if self.menu.NeedRaw {
-        self.raw.WriteString(s)
+        self.raw.WriteString(s+"\n")
     }
 }
 

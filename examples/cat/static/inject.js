@@ -34,29 +34,31 @@ var WATunnel = {
       worker.postMessage({action:'ready'});
   },
   flush: function() {
+    if(!this.isOpened){
+      // cache the msg && try to restore ws conn
+      alert('WATunnel is not opened');
+      return;
+    }
+
     if(this.cache.length > 0){
       worker.postMessage({action:'deliver',msgs:JSON.stringify(this.cache)});
       this.cache = []
     }
   },
   deliver: function (msg) {
-    if(this.isOpened){
-      // this.counter++;
-      // var tmp = new Date().getUTCSeconds();
-      // if(tmp != this.sec){
-      //   console.log(this.counter);
-      //   this.sec = tmp;
-      //   this.counter = 0;
-      // }
+    this.cache.push(msg)
 
-      // TODO cache and real send later for opt
-      this.cache.push(msg)
-      if(this.autoFlush && this.cache.length == 5000){
-        this.flush();
-      }
-    }else {
-      // cache the msg && try to restore ws conn
-      alert('WATunnel is not opened')
+    // this.counter++;
+    // var tmp = new Date().getUTCSeconds();
+    // if(tmp != this.sec){
+    //   console.log(this.counter);
+    //   this.sec = tmp;
+    //   this.counter = 0;
+    // }
+
+    // TODO cache and real send later for opt
+    if(this.autoFlush && this.cache.length == 5000){
+      this.flush();
     }
   },
   close: function (argument) {

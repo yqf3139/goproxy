@@ -8,6 +8,7 @@ import (
 	"encoding/json"
   "fmt"
 	"os"
+	"runtime"
 )
 
 func check(err error) {
@@ -33,6 +34,8 @@ func readConfig(menufile string, configfile string) (string, string) {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
+
 	verbose := flag.Bool("v", false, "should every proxy request be logged to stdout")
 	addr := flag.String("addr", ":8080", "proxy listen address")
 	menufile := flag.String("menu", "config/menu.json", "the menu config file location")

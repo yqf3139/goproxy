@@ -10,6 +10,7 @@ import (
 	"fmt"
   "strconv"
 	"strings"
+	"html/template"
 	"code.google.com/p/go.net/websocket"
 )
 
@@ -125,6 +126,13 @@ func Hello(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, hp)
 }
 
+func (self *Kitchen) makePac() (func (w http.ResponseWriter, r *http.Request)) {
+	return func (w http.ResponseWriter, r *http.Request)  {
+		tmpl, _ := template.ParseFiles("pac/pac.tmpl")
+    tmpl.Execute(w, self)
+	}
+}
+
 func (self *Kitchen) newCooker(menu *Menu, ssl int) (Cooker, int, bool) {
   port := 0
   needCreateNewPort := false
@@ -165,6 +173,7 @@ func (self *Kitchen) Open(addr *string)  {
 
   // config http/https server to host js and worker js
   http.HandleFunc("/", Hello)
+	http.HandleFunc("/pac/", self.makePac())
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 
   go func() {

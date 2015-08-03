@@ -3,13 +3,21 @@ import (
 	"fmt"
   "strconv"
   "time"
+	"encoding/json"
 )
 type WebglPresenter struct {
 
 }
 
 func (p *WebglPresenter) present(s string)  {
-    //fmt.Println("webgl present: ",s)
+	var f []interface{}
+	b := []byte(s)
+	err := json.Unmarshal(b, &f)
+	if err != nil{
+		fmt.Println("json.Unmarshal err")
+	}else {
+		//fmt.Printf("json len: %d\n", len(f))
+	}
 }
 
 type WebglCooker struct {
@@ -55,5 +63,5 @@ func (self *WebglCooker) prepare(s string) string {
 }
 
 func (self *WebglCooker) cook(s string) string {
-    return "=="+s+"==\n"
+    return s
 }
