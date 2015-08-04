@@ -1,6 +1,6 @@
 var ccanvas = null;
 
-var w2n_endframe = 900; //the number of the recorded frames
+var w2n_endframe = 60; //the number of the recorded frames
 var w2n_skipsearch = true; // whether skip merging the global variables with same value
 
 var W2N = {

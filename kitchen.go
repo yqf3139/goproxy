@@ -129,6 +129,8 @@ func Hello(w http.ResponseWriter, r *http.Request) {
 func (self *Kitchen) makePac() (func (w http.ResponseWriter, r *http.Request)) {
 	return func (w http.ResponseWriter, r *http.Request)  {
 		tmpl, _ := template.ParseFiles("pac/pac.tmpl")
+		//application/x-ns-proxy-autoconfig
+		w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig")
     tmpl.Execute(w, self)
 	}
 }
@@ -173,7 +175,7 @@ func (self *Kitchen) Open(addr *string)  {
 
   // config http/https server to host js and worker js
   http.HandleFunc("/", Hello)
-	http.HandleFunc("/pac/", self.makePac())
+	http.HandleFunc("/i.pac", self.makePac())
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 
   go func() {
