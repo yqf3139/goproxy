@@ -36,7 +36,7 @@ var WATunnel = {
   flush: function() {
     if(!this.isOpened){
       // cache the msg && try to restore ws conn
-      alert('WATunnel is not opened');
+      console.error('WATunnel is not opened');
       return;
     }
 

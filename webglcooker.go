@@ -15,6 +15,7 @@ func (p *WebglPresenter) present(s string)  {
 	err := json.Unmarshal(b, &f)
 	if err != nil{
 		fmt.Println("json.Unmarshal err")
+		fmt.Println(err)
 	}else {
 		//fmt.Printf("json len: %d\n", len(f))
 	}

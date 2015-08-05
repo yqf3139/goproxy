@@ -1,6 +1,6 @@
 var ccanvas = null;
 
-var w2n_endframe = 60; //the number of the recorded frames
+var w2n_endframe = 600; //the number of the recorded frames
 var w2n_skipsearch = true; // whether skip merging the global variables with same value
 
 var W2N = {
@@ -39,7 +39,7 @@ function entry() {
   ccanvas = document.querySelector('canvas');
   console.log(!ccanvas, !WATunnel, !WATunnel.isOpened);
   if (!ccanvas || !WATunnel || !WATunnel.isOpened) {
-    setTimeout('entry()',1000);
+    setTimeout('entry()',2000);
     WATunnel.open();
     return;
   }
@@ -65,6 +65,9 @@ function inject(object, func){
 
 _requestAnimationFrame_ = window.requestAnimationFrame;
 window.requestAnimationFrame = function (callback) {
+  if(!WATunnel.isOpened){
+    return _requestAnimationFrame_.apply(window, arguments);
+  }
   if (W2N.endflag == false) {
     W2N.frame_count++;
     if (W2N.frame_count > W2N.endframe) {
@@ -73,9 +76,9 @@ window.requestAnimationFrame = function (callback) {
 
     arguments[0] = (function (cb) {
       return function () {
-        WATunnel.deliver({t:'start', d:(new Date()).valueOf()});
+        WATunnel.deliver({f:'start', a:(new Date()).valueOf()});
         cb();
-        WATunnel.deliver({t:'end', d:(new Date()).valueOf()});
+        WATunnel.deliver({f:'end', a:(new Date()).valueOf()});
         setTimeout('WATunnel.flush();',1);
         //WATunnel.flush();
       }
@@ -84,10 +87,10 @@ window.requestAnimationFrame = function (callback) {
   }else {
     console.log("W2N:RAF STOP");
     WATunnel.flush();
-    WATunnel.deliver({trace:'end'});
+    WATunnel.deliver({f:'traceend'});
     WATunnel.flush();
     WATunnel.close();
   }
 };
 
-entry();
+setTimeout('entry()',2000);

@@ -76,6 +76,7 @@ func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
 			return
 		}
 		cooker.setCooking(true)
+		fmt.Println("accept ws conn")
 
 		defer func ()  {
 			ws.Close()
@@ -83,6 +84,8 @@ func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
 			cooker.offDuty()
 			self.Cookers[ssl][index] = nil
 		}()
+
+		var tmp string = ""
 
     for {
         var reply string
@@ -92,17 +95,27 @@ func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
             break
         }
 
-        // TODO chain
-        reply = cooker.wash(reply)
+				if reply[0]=='[' {
+						tmp = reply
+				}else{
+						tmp = tmp + reply
+				}
 
-				cooker.dumpRaw(reply)
+				if tmp[len(tmp)-1]!=']' {
+					continue
+				}
+
+        // TODO chain
+        reply = cooker.wash(tmp)
+
+				cooker.dumpRaw(tmp)
         if cooker.isReady() {
-          reply = cooker.cook(reply)
+          reply = cooker.cook(tmp)
         }else {
-          reply = cooker.prepare(reply)
+          reply = cooker.prepare(tmp)
         }
 
-				cooker.present(reply)
+				cooker.present(tmp)
     }
   }
 }
@@ -169,9 +182,13 @@ func (self *Kitchen) newCooker(menu *Menu, ssl int) (Cooker, int, bool) {
 }
 
 func (self *Kitchen) Open(addr *string)  {
+
 	// local addr
 	INJECT_HTTP_PREFIX = fmt.Sprintf("http://%s%s/static/", self.Addr, HTTP_PORT)
 	INJECT_HTTPS_PREFIX = fmt.Sprintf("https://%s%s/static/", self.Addr, SSL_PORT)
+
+	// gen cert for self
+	createServerCertKey(self.Addr)
 
   // config http/https server to host js and worker js
   http.HandleFunc("/", Hello)
@@ -219,6 +236,11 @@ func (self *Kitchen) Open(addr *string)  {
     self.Proxy.OnResponse(FullUrlMatches(re), ContentTypeIs("text/html")).DoFunc(
     	func(resp *http.Response, ctx *ProxyCtx) *http.Response {
 				fmt.Println(resp.Request.URL)
+
+				resp.Header["Expires"] = []string{"-1"}
+				resp.Header["Cache-Control"] = []string{"no-cache"}
+				resp.Header["Pragma"] = []string{"no-cache"}
+				resp.Header["Access-Control-Allow-Origin"] = []string{"*"}
 
 				var ssl int = 0;
 				if resp.Request.URL.Scheme == "https"{
