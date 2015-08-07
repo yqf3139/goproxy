@@ -23,12 +23,6 @@
 		"Urlreg" : "helloracer.com/webgl/$",
 		"Category" : "WEBGL",
 		"NeedRaw" : true
-	},
-	{
-		"Name" : "3jsorg",
-		"Urlreg" : "3jsorg/examples/$",
-		"Category" : "WEBGL",
-		"NeedRaw" : true
 	}
 	]
 }

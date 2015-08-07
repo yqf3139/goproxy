@@ -1,4 +1,5 @@
 var ccanvas = null;
+var mythen = 0.0;
 
 var w2n_endframe = 600; //the number of the recorded frames
 var w2n_skipsearch = true; // whether skip merging the global variables with same value
@@ -10,6 +11,7 @@ var W2N = {
   frame_count : 0,//current frame number
   widthdef : "",//the width of the canvas
 	heightdef : "",//the height of the canvas
+  g_fpsTimer : new mytdl.fps.FPSTimer()
 }
 
 var ignoreFuncs = {
@@ -35,6 +37,11 @@ var ignoreFuncs = {
   "isTexture": true
 }
 
+document.addEventListener('DOMContentLoaded', function (argument) {
+  mytdl.initFpsDisplay();
+  setTimeout('entry()',2000);
+})
+
 function entry() {
   ccanvas = document.querySelector('canvas');
   console.log(!ccanvas, !WATunnel, !WATunnel.isOpened);
@@ -57,7 +64,6 @@ function entry() {
 function inject(object, func){
   var ori = object[func];
   object[func] = function () {
-    //console.log('gl.'+func);
     WATunnel.deliver({f:func, a:arguments});
     return ori.apply(object, arguments);
   }
@@ -65,6 +71,20 @@ function inject(object, func){
 
 _requestAnimationFrame_ = window.requestAnimationFrame;
 window.requestAnimationFrame = function (callback) {
+  var now = (new Date()).getTime() * 0.001;
+  var elapsedTime;
+  if(mythen == 0.0) {
+    elapsedTime = 0.0;
+  } else {
+    elapsedTime = now - mythen;
+  }
+  mythen = now;
+
+  W2N.g_fpsTimer.update(elapsedTime);
+  if(mytdl.fps.inner){
+    mytdl.fps.inner.textContent = W2N.g_fpsTimer.averageFPS;
+  }
+
   if(!WATunnel.isOpened){
     return _requestAnimationFrame_.apply(window, arguments);
   }
@@ -92,5 +112,3 @@ window.requestAnimationFrame = function (callback) {
     WATunnel.close();
   }
 };
-
-setTimeout('entry()',2000);

@@ -41,7 +41,7 @@ var WATunnel = {
     }
 
     if(this.cache.length > 0){
-      worker.postMessage({action:'deliver',msgs:JSON.stringify(this.cache)});
+      worker.postMessage({action:'deliver',msgs: []});//JSON.stringify(this.cache)});
       this.cache = []
     }
   },

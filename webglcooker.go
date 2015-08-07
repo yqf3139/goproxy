@@ -38,6 +38,7 @@ func (self *WebglCooker) onDuty() {
 
 	fmt.Println("onDuty : WebglCooker "+self.folder)
   // init vars
+	self.injectFiles = append(self.injectFiles, "fps.js")
   self.injectFiles = append(self.injectFiles, "webgl_inject.js")
   self.injectVariables = append(self.injectVariables, "var WEBGL_DEBUG = true;")
 
