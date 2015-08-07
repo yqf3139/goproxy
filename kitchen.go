@@ -320,6 +320,7 @@ func (self *Kitchen) Open(addr *string)  {
 
 			needRaw := false
 			name := resp.Request.Host
+
 			v := m["inject"]
 			r := m["raw"]
 			n := m["name"]
