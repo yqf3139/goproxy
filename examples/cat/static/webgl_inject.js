@@ -1,5 +1,4 @@
 var ccanvas = null;
-var mythen = 0.0;
 
 var w2n_endframe = 600; //the number of the recorded frames
 var w2n_skipsearch = true; // whether skip merging the global variables with same value
@@ -69,8 +68,9 @@ function inject(object, func){
   }
 }
 
-_requestAnimationFrame_ = window.requestAnimationFrame;
-window.requestAnimationFrame = function (callback) {
+var mythen = 0.0;
+
+function updateFPS() {
   var now = (new Date()).getTime() * 0.001;
   var elapsedTime;
   if(mythen == 0.0) {
@@ -84,7 +84,11 @@ window.requestAnimationFrame = function (callback) {
   if(mytdl.fps.inner){
     mytdl.fps.inner.textContent = W2N.g_fpsTimer.averageFPS;
   }
+}
 
+_requestAnimationFrame_ = window.requestAnimationFrame;
+window.requestAnimationFrame = function (callback) {
+  updateFPS();
   if(!WATunnel.isOpened){
     return _requestAnimationFrame_.apply(window, arguments);
   }

@@ -26,6 +26,13 @@ const (
 	WS_PREFIX = "ws"
 )
 
+const(
+    DEFAULT = "DEFAULT"
+    WEBGL   = "WEBGL"
+    SECURITY = "SECURITY"
+		RUNNER = "RUNNER"
+)
+
 var INJECT_HTTP_PREFIX string
 var INJECT_HTTPS_PREFIX string
 
@@ -187,6 +194,8 @@ func (self *Kitchen) newCooker(menu *Menu, ssl int) (Cooker, int, bool, string) 
   switch cat {
   case WEBGL:
 		return &WebglCooker{SimpleCooker{menu: menu}}, port, needCreateNewPort, ""
+	case RUNNER:
+		return &RunnerCooker{SimpleCooker{menu: menu}}, port, needCreateNewPort, ""
   case SECURITY:
 		return nil, 0, false, "SECURITY cooker not implemented"
 	case DEFAULT:

@@ -6,12 +6,6 @@ import (
   "os"
 )
 
-const(
-    DEFAULT = "DEFAULT"
-    WEBGL   = "WEBGL"      // WEBGL == 0
-    SECURITY = "SECURITY"  // SECURITY == 1
-)
-
 type Presenter interface {
     present(s string)
 }
