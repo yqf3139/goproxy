@@ -72,3 +72,22 @@ mytdl.initFpsDisplay = function() {
   mytdl.fps.node.style.padding = '10px';
   document.body.appendChild(mytdl.fps.node);
 }
+
+var mythen = 0.0;
+var g_fpsTimer = new mytdl.fps.FPSTimer();
+
+function updateFPS() {
+  var now = (new Date()).getTime() * 0.001;
+  var elapsedTime;
+  if(mythen == 0.0) {
+    elapsedTime = 0.0;
+  } else {
+    elapsedTime = now - mythen;
+  }
+  mythen = now;
+
+  g_fpsTimer.update(elapsedTime);
+  if(mytdl.fps.inner){
+    mytdl.fps.inner.textContent = g_fpsTimer.averageFPS;
+  }
+}

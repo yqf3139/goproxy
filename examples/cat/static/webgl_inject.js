@@ -9,8 +9,7 @@ var W2N = {
   endflag : false,//true means tool stops recording.
   frame_count : 0,//current frame number
   widthdef : "",//the width of the canvas
-	heightdef : "",//the height of the canvas
-  g_fpsTimer : new mytdl.fps.FPSTimer()
+	heightdef : ""//the height of the canvas
 }
 
 var ignoreFuncs = {
@@ -36,29 +35,6 @@ var ignoreFuncs = {
   "isTexture": true
 }
 
-document.addEventListener('DOMContentLoaded', function (argument) {
-  mytdl.initFpsDisplay();
-  setTimeout('entry()',2000);
-})
-
-function entry() {
-  ccanvas = document.querySelector('canvas');
-  console.log(!ccanvas, !WATunnel, !WATunnel.isOpened);
-  if (!ccanvas || !WATunnel || !WATunnel.isOpened) {
-    setTimeout('entry()',2000);
-    WATunnel.open();
-    return;
-  }
-
-  WATunnel.autoFlush = false;
-
-  ccanvas = document.querySelector('canvas');
-  var ggl = ccanvas.getContext('webgl');
-  for(item in ggl){
-    if(typeof(ggl[item]) == 'function' && !(item in ignoreFuncs))
-      inject(ggl, item);
-  }
-}
 
 function inject(object, func){
   var ori = object[func];
@@ -68,29 +44,11 @@ function inject(object, func){
   }
 }
 
-var mythen = 0.0;
-
-function updateFPS() {
-  var now = (new Date()).getTime() * 0.001;
-  var elapsedTime;
-  if(mythen == 0.0) {
-    elapsedTime = 0.0;
-  } else {
-    elapsedTime = now - mythen;
-  }
-  mythen = now;
-
-  W2N.g_fpsTimer.update(elapsedTime);
-  if(mytdl.fps.inner){
-    mytdl.fps.inner.textContent = W2N.g_fpsTimer.averageFPS;
-  }
-}
-
 _requestAnimationFrame_ = window.requestAnimationFrame;
 window.requestAnimationFrame = function (callback) {
   updateFPS();
   if(!WATunnel.isOpened){
-    return _requestAnimationFrame_.apply(window, arguments);
+    //return _requestAnimationFrame_.apply(window, arguments);
   }
   if (W2N.endflag == false) {
     W2N.frame_count++;
@@ -116,3 +74,32 @@ window.requestAnimationFrame = function (callback) {
     WATunnel.close();
   }
 };
+
+var _getContext_ = HTMLCanvasElement.prototype.getContext;
+HTMLCanvasElement.prototype.getContext = function () {
+  var contextNames = ["moz-webgl", "webkit-3d", "experimental-webgl", "webgl", "3d"];
+  var requestingWebGL = contextNames.indexOf(arguments[0]) != -1;
+  var skip = 0;
+	if (requestingWebGL) {
+		var trueWebgl = _getContext_.apply(this, arguments);
+    for(item in trueWebgl){
+      if(typeof(trueWebgl[item]) == 'function' && !(item in ignoreFuncs))
+        inject(trueWebgl, item);
+    }
+	} else {
+		return _getContext_.apply(this, arguments);
+	}
+};
+
+
+document.addEventListener('DOMContentLoaded', function (argument) {
+  WATunnel.autoFlush = false;
+  WATunnel.listen(function (msgs) {
+    // body...
+  });
+  mytdl.initFpsDisplay();
+
+  WATunnel.open(function () {
+
+  }, 5);
+})

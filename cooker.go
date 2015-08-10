@@ -7,33 +7,34 @@ import (
 )
 
 type Presenter interface {
-    present(s string)
+    present(s Cookable)
 }
+
+type Cookable map[string]interface{}
 
 type Cooker interface {
 		onDuty()
 		offDuty()
-		wash(s string) string
 		dumpRaw(s string)
-		prepare(s string) string
-		cook(s string) string
-		present(s string)
+
+		wash(s Cookable) Cookable
+		prepare(s Cookable) Cookable
+		cook(s Cookable) Cookable
+		present(s Cookable)
 
 		getInject() ([]string, []string)
 		isCooking() bool
-		setCooking(b bool)
+		setCooking(bool,func(Cookable))
 		isReady() bool
-		setReady(b bool)
 }
 
 type SimplePresenter struct {}
 
-func (p *SimplePresenter) present(s string)  {
-    fmt.Println("present: ",s)
+func (p *SimplePresenter) present(s Cookable)  {
 }
 
 func simpleFormatFolderName(self *SimpleCooker) string {
-		return "trace/"+self.menu.Name + "#" + strconv.FormatInt(time.Now().Unix(),10)
+		return "trace/dump/"+self.menu.Name + "#" + strconv.FormatInt(time.Now().Unix(),10)
 }
 
 type SimpleCooker struct {
@@ -45,6 +46,9 @@ type SimpleCooker struct {
 		injectVariables []string
     raw *os.File
     presenters []Presenter
+
+		// callback functions
+		feed func (Cookable)
 
 		// virtual functions
 		formatFolderName func (self *SimpleCooker) string
@@ -90,7 +94,7 @@ func (self *SimpleCooker) offDuty() {
   }
 }
 
-func (self *SimpleCooker) wash(s string) string {
+func (self *SimpleCooker) wash(s Cookable) Cookable {
     return s
 }
 
@@ -100,11 +104,11 @@ func (self *SimpleCooker) dumpRaw(s string) {
     }
 }
 
-func (self *SimpleCooker) prepare(s string) string {
+func (self *SimpleCooker) prepare(s Cookable) Cookable {
     return s
 }
 
-func (self *SimpleCooker) cook(s string) string {
+func (self *SimpleCooker) cook(s Cookable) Cookable {
     return s
 }
 
@@ -112,19 +116,16 @@ func (self *SimpleCooker) isCooking() bool {
     return self.cooking
 }
 
-func (self *SimpleCooker) setCooking(b bool) {
+func (self *SimpleCooker) setCooking(b bool, feed func(Cookable)) {
     self.cooking = b
+		self.feed = feed
 }
 
 func (self *SimpleCooker) isReady() bool {
     return self.ready
 }
 
-func (self *SimpleCooker) setReady(b bool) {
-    self.ready = b
-}
-
-func (self *SimpleCooker) present(s string) {
+func (self *SimpleCooker) present(s Cookable) {
 	for _, persenter := range self.presenters {
 		persenter.present(s)
 	}

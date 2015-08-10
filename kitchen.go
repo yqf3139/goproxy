@@ -11,6 +11,7 @@ import (
   "strconv"
 	"strings"
 	"html/template"
+	"encoding/json"
 	"net/url"
 	"code.google.com/p/go.net/websocket"
 )
@@ -70,6 +71,18 @@ type Kitchen struct {
   Proxy *ProxyHttpServer
 }
 
+func (self *Kitchen) newStringFeedTunnel(ws *websocket.Conn) (func(Cookable)) {
+	return func (msg Cookable)  {
+		b, err := json.Marshal(msg)
+    if err != nil {
+        fmt.Println("json err:", err)
+    }
+		if err = websocket.Message.Send(ws, string(b)); err != nil {
+        fmt.Println("Can't send")
+    }
+	}
+}
+
 func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
   return func (ws *websocket.Conn)  {
     var err error
@@ -83,12 +96,12 @@ func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
 			fmt.Println("drop ws conn : cooker.isCooking")
 			return
 		}
-		cooker.setCooking(true)
+		cooker.setCooking(true, self.newStringFeedTunnel(ws))
 		fmt.Println("accept ws conn")
 
 		defer func ()  {
 			ws.Close()
-			cooker.setCooking(false)
+			cooker.setCooking(false, nil)
 			cooker.offDuty()
 			self.Cookers[ssl][index] = nil
 		}()
@@ -113,17 +126,39 @@ func (self *Kitchen) newWorkflow(index int, ssl int) func (ws *websocket.Conn) {
 					continue
 				}
 
-        // TODO chain
-        reply = cooker.wash(tmp)
-
 				cooker.dumpRaw(tmp)
-        if cooker.isReady() {
-          reply = cooker.cook(tmp)
-        }else {
-          reply = cooker.prepare(tmp)
-        }
 
-				cooker.present(tmp)
+				// TODO choose parser
+				var f []interface{}
+				b := []byte(tmp)
+				err := json.Unmarshal(b, &f)
+				if err != nil {
+					fmt.Println("json.Unmarshal err")
+					fmt.Println(err)
+				} else {
+					//fmt.Printf("json len: %d\n", len(f))
+				}
+
+				for _, item := range f {
+					// TODO chain
+					if value, ok := item.(map[string]interface{}); ok {
+						value = cooker.wash(value)
+						if value == nil {
+							break
+						}
+
+		        if cooker.isReady() {
+		          value = cooker.cook(value)
+		        }else {
+		          value = cooker.prepare(value)
+		        }
+
+						if value == nil {
+							break
+						}
+						cooker.present(value)
+					}
+				}
     }
   }
 }
@@ -199,7 +234,7 @@ func (self *Kitchen) newCooker(menu *Menu, ssl int) (Cooker, int, bool, string) 
   case SECURITY:
 		return nil, 0, false, "SECURITY cooker not implemented"
 	case DEFAULT:
-    return &SimpleCooker{menu: menu}, port, needCreateNewPort, ""
+    return &DefaultCooker{SimpleCooker{menu: menu}}, port, needCreateNewPort, ""
 	default:
 		return nil, 0, false, "The "+cat+" cooker is not here, check the spell"
   }
@@ -328,7 +363,7 @@ func (self *Kitchen) Open(addr *string)  {
 			m, _ := url.ParseQuery(resp.Request.URL.RawQuery)
 
 			needRaw := false
-			name := resp.Request.Host
+			name := strings.Replace(resp.Request.URL.String(), "/", "-", -1)
 
 			v := m["inject"]
 			r := m["raw"]

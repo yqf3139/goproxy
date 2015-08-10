@@ -66,11 +66,11 @@ WAR.data = {
         WAR.data.trace_index[type]++;
     },
     Process : function () {
-      for (var i=0;i<WAR.data.trace["event"].length;i++) {
-          var item = WAR.data.trace["event"][i];
-          if(item["in_raf"])
-            console.log(item["in_raf"]);
-      }
+        for (var i=0;i<WAR.data.trace["event"].length;i++) {
+            var item = WAR.data.trace["event"][i];
+            if(item["in_raf"])
+              console.log(item["in_raf"]);
+        }
 
         if (typeof WAR_FORCE_TIME_DRIVEN != "undefined") {
             var trace = {
@@ -97,14 +97,41 @@ WAR.data = {
         data["record_start_time"] = WAR.data.record_start_time;
         data["trace"] = WAR.data.trace;
         data["callback_fun2id"] = WAR.common.callback_fun2id;
-        localStorage["WAR.data"] = escape(JSON.stringify(data));
+        //localStorage["WAR.data"] = escape(JSON.stringify(data));
+
+        //yqf
+        WATunnel.jsonp('push_cb', function (argument) {
+          alert("push record success")
+        },{action:'push', trace: escape(JSON.stringify(data))});
     },
-    LoadRecord : function () {
-        var data = typeof WAR_DATA!="undefined" ? WAR_DATA : localStorage["WAR.data"];
-        data = JSON.parse(unescape(data));
-        WAR.data.record_start_time = data["record_start_time"];
-        WAR.data.trace = data["trace"];
-        WAR.data.callback_fun2id = data["callback_fun2id"];
+    LoadRecord : function (callback) {
+        //yqf
+        WATunnel.jsonp('list_cb', function (msgs) {
+
+          var l = msgs.recordList;
+          var menu = "";
+
+          if(l.length == 0){
+            alert('the server have no records');
+            WAR.record.Init();
+            return;
+          }
+
+          for (var i = 0; i < l.length; i++) {
+            menu += "# "+i+" @ "+ (new Date(parseInt(l[i])*1000)).toLocaleString() +"\n";
+          }
+
+          var record_idx = prompt(menu+'enter record ID to reply: ', 0);
+          WATunnel.jsonp('pull_cb', function (msgs) {
+            var data = JSON.parse(unescape(msgs.trace));
+            WAR.data.record_start_time = data["record_start_time"];
+            WAR.data.trace = data["trace"];
+            WAR.data.callback_fun2id = data["callback_fun2id"];
+            callback();
+
+          }, {action:'pull', recordId:l[record_idx]});
+        }, {action:'list'});
+
     },
 };
 
@@ -354,7 +381,7 @@ WAR.common = {
     },
     End : function() {
         WAR.replay.replay_end_time = WAR.hook.date_now();
-        location.href = "result.html?time="+(WAR.replay.replay_end_time-WAR.replay.replay_begin_time);
+        //location.href = "result.html?time="+(WAR.replay.replay_end_time-WAR.replay.replay_begin_time);
     },
     ChooseMode : function () {
         if (typeof WAR_CONFIG_MODE != "undefined") {
@@ -376,7 +403,9 @@ WAR.common = {
             WAR.record.Init();
         }
         if (WAR.config.mode == "replay") {
-            WAR.replay.Init();
+            WAR.data.LoadRecord(function () {
+              WAR.replay.Init();
+            });
         }
     },
 };
@@ -401,8 +430,6 @@ WAR.record = {
         WAR.record.record_enable = false;
         WAR.data.SaveRecord();
         alert("record end");
-        var mywindow = window.open();
-        mywindow.document.write("WAR_DATA = \""+localStorage["WAR.data"]+"\";");
     },
     HookStartKey : function () {
         if (typeof WAR_RECORD_START_KEY != "undefined") {
@@ -702,7 +729,6 @@ WAR.replay = {
         }
     },
     Init : function () {
-        WAR.data.LoadRecord();
         window.requestAnimationFrame = function (callback) {
             updateFPS();
             return WAR.hook.requestAnimationFrame((function(callback){
@@ -850,26 +876,16 @@ WAR.replay = {
     },
 };
 
-var mythen = 0.0;
-var g_fpsTimer = new mytdl.fps.FPSTimer();
+WATunnel.autoFlush = false;
+WATunnel.cacheSize = 1;
 
-function updateFPS() {
-  var now = (new Date()).getTime() * 0.001;
-  var elapsedTime;
-  if(mythen == 0.0) {
-    elapsedTime = 0.0;
-  } else {
-    elapsedTime = now - mythen;
-  }
-  mythen = now;
+WATunnel.listen(function (msgs) {
 
-  g_fpsTimer.update(elapsedTime);
-  if(mytdl.fps.inner){
-    mytdl.fps.inner.textContent = g_fpsTimer.averageFPS;
-  }
-}
+});
 
 document.addEventListener('DOMContentLoaded', function (argument) {
-  WAR.common.Init();
   mytdl.initFpsDisplay();
+  WATunnel.open(function () {
+    WAR.common.Init();
+  }, 5);
 })

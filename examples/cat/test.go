@@ -1,16 +1,15 @@
 package main
 
 import (
-    "html/template"
-    "os"
+    "fmt"
+    "io/ioutil"
 )
 
-type Person struct {
-    Addr string
-}
-
 func main() {
-    tmpl, _ := template.ParseFiles("test.tmpl")
-    p := Person{Addr: "Astaxie"}
-    tmpl.Execute(os.Stdout, p)
+    files, _ := ioutil.ReadDir("./")
+    fileNames := make([]string, 0)
+    for _, fi := range files {
+      fileNames = append(fileNames, fi.Name())
+    }
+    fmt.Println(fileNames)
 }
