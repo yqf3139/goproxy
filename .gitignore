@@ -1,2 +1,5 @@
 bin
 *.swp
+examples/cat/trace
+examples/cat/serial
+examples/cat/mycert1.*

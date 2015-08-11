@@ -1,0 +1,40 @@
+var server = "{{.Addr}}";
+
+var proxy = "PROXY " + server + ":8080;";
+var direct  = 'DIRECT;';
+
+var rules = [
+    "*.jpg",
+    "*mozilla.com*",
+    //"*.js",
+    "*.png",
+    "*.css",
+    "*.gif",
+    "*.ico",
+    "*.swf",
+    "*.js\?*",
+    "*.css\?*",
+    "*.jpg\?*",
+    "*.png\?*",
+    "*.woff?",
+    "*.webp",
+    "*.json",
+    "*.json\?*",
+    "*.xml",
+    "ws://*",
+    "wss://*",
+    "data:image*"
+]
+
+function FindProxyForURL(url, host) {
+    if(isInNet(host, server, '255.255.255.255')){
+    	if(url[url.indexOf(host)+host.length] == ':')
+    		  return direct;
+        return proxy;
+    }
+    for(var i=0;i != rules.length; i++){
+      if(shExpMatch(url, rules[i]))
+          return direct;
+    }
+    return proxy;
+}
